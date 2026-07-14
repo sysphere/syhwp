@@ -5,8 +5,15 @@ All notable changes to syhwp are documented here. This project adheres to
 
 ## [Unreleased]
 
-- Developer tooling: `scripts/inspect_hwp.py`, contributor guide, Claude Code
-  skills (`inspect-sample`, `release`).
+## [0.0.6] — 2026-07-14
+
+Documentation and developer tooling (no library code changes).
+
+- Rewrote `README.md` with an API reference; trimmed `DESIGN.md` to a clean
+  format/architecture reference.
+- Added a developer guide (`CLAUDE.md`), `CONTRIBUTING.md`, and this changelog.
+- Added `scripts/inspect_hwp.py` and Claude Code skills (`inspect-sample`,
+  `release`).
 
 ## [0.0.5] — 2026-07-14
 
@@ -23,5 +30,6 @@ Initial public release.
 - CLI (`syhwp` / `python -m syhwp`) and a `py.typed` marker.
 - Only runtime dependency: `olefile`. HWPX uses the standard library alone.
 
-[Unreleased]: https://github.com/sysphere/syhwp/compare/v0.0.5...HEAD
+[Unreleased]: https://github.com/sysphere/syhwp/compare/v0.0.6...HEAD
+[0.0.6]: https://github.com/sysphere/syhwp/releases/tag/v0.0.6
 [0.0.5]: https://github.com/sysphere/syhwp/releases/tag/v0.0.5
