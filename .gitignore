@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+
+# Test / tooling
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local sample documents (do not commit copyrighted files)
+tests/data/*.hwp
+tests/data/*.hwpx
+!tests/data/.gitkeep
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
