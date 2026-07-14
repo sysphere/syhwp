@@ -107,8 +107,14 @@ ODT path. The gaps that matter for the RAG use case, in priority order:
   distribution-protected files that correctly raise `EncryptedDocumentError`).
 
 **Tier 2 — high value, higher effort**
-- **Distribution (배포용) document decoding** — clean-room the distdoc decryption
-  so copy-protected government documents (very common) become readable.
+- **Distribution (배포용) document decoding** — *deferred, not guessed.* Confirmed
+  two protected samples (FileHeader distribution bit set; the section stream is
+  obfuscated from byte 0, seed at bytes[0:4]). Correctly rejected today with
+  `EncryptedDocumentError` (no crash). Real decoding needs the authoritative
+  HANCOM distribution-doc spec (seed → LCG de-obfuscation → AES-128 key) plus an
+  AES backend — implemented clean-room from the spec and verified against the
+  samples, not reverse-engineered by guesswork. AES would be an optional extra
+  (`syhwp[crypto]`) to keep the core dependency-free.
 - Nested-table rendering (HTML / indented), HWPX cell spans & images.
 
 **Tier 3 — convenience / fidelity**
