@@ -19,7 +19,7 @@ from .exceptions import (
 )
 from .models import Cell, Document, Equation, Image, Paragraph, Table
 
-__version__ = "0.0.3"
+__version__ = "0.0.4"
 
 __all__ = [
     "open",

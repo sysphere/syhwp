@@ -1,18 +1,18 @@
 """HWPX (OWPML) reader — standard library only (zipfile + ElementTree).
 
 Elements are matched by local name (namespace-agnostic) so the reader tolerates
-OWPML namespace-version differences:
-``p`` paragraph, ``t`` text run, ``tbl``/``tr``/``tc`` table/row/cell.
+OWPML namespace-version differences: ``p`` paragraph, ``t`` text run,
+``tbl``/``tr``/``tc`` table/row/cell, ``equation`` (with ``script``), ``pic``.
 """
 
 import re
 import xml.etree.ElementTree as ET
 import zipfile
-from typing import Iterator, List
+from typing import List
 
 from ._markdown import normalize
 from .exceptions import InvalidHwpError
-from .models import Cell, Document, Paragraph, Table
+from .models import Cell, Document, Equation, Image, Paragraph, Table
 
 _SECTION_RE = re.compile(r"(?:^|/)section\d+\.xml$", re.IGNORECASE)
 
@@ -22,8 +22,18 @@ def _local(tag) -> str:
 
 
 def _cell_text(tc) -> str:
-    """All text under a cell, linearized (nested tables flatten to text)."""
-    return normalize("".join(e.text or "" for e in tc.iter() if _local(e.tag) == "t"))
+    """All text under a cell, linearized — text runs plus inline object markers
+    (nested tables flatten to text)."""
+    parts: List[str] = []
+    for e in tc.iter():
+        ln = _local(e.tag)
+        if ln == "t":
+            parts.append(e.text or "")
+        elif ln == "script":
+            parts.append(" [수식: %s] " % normalize(e.text or ""))
+        elif ln == "pic":
+            parts.append(" [그림] ")
+    return normalize("".join(parts))
 
 
 def _direct(el, name: str) -> List:
@@ -57,6 +67,12 @@ def _build_table(tbl) -> Table:
     return Table(n_rows=len(rows), n_cols=n_cols, cells=cells)
 
 
+def _equation_script(eq) -> str:
+    return normalize(
+        "".join(e.text or "" for e in eq.iter() if _local(e.tag) == "script")
+    )
+
+
 def _emit_blocks(root, blocks: List) -> None:
     para: List[str] = []
 
@@ -73,6 +89,12 @@ def _emit_blocks(root, blocks: List) -> None:
             if ln == "tbl":
                 flush()
                 blocks.append(_build_table(child))
+            elif ln == "equation":
+                flush()
+                blocks.append(Equation(_equation_script(child)))
+            elif ln == "pic":
+                flush()
+                blocks.append(Image())
             elif ln == "t":
                 para.append("".join(child.itertext()))
             elif ln == "p":
@@ -85,22 +107,30 @@ def _emit_blocks(root, blocks: List) -> None:
     flush()
 
 
-def _iter_sections(path) -> Iterator["ET.Element"]:
+def _read_version(z: zipfile.ZipFile) -> str:
+    """HWPX version from version.xml (major.minor.micro.buildNumber)."""
     try:
-        z = zipfile.ZipFile(path)
-    except zipfile.BadZipFile as e:
-        raise InvalidHwpError(f"Corrupt HWPX (bad zip): {e}") from e
-    with z:
-        for name in sorted(n for n in z.namelist() if _SECTION_RE.search(n)):
-            try:
-                yield ET.fromstring(z.read(name))
-            except ET.ParseError:
-                continue
+        root = ET.fromstring(z.read("version.xml"))
+    except (KeyError, ET.ParseError):
+        return ""
+    a = root.attrib
+    parts = [a.get(k) for k in ("major", "minor", "micro", "buildNumber")]
+    return ".".join(p for p in parts if p is not None) if any(parts) else ""
 
 
 def read_document_hwpx(path) -> Document:
     """Parse an HWPX document into a :class:`Document`."""
+    try:
+        z = zipfile.ZipFile(path)
+    except zipfile.BadZipFile as e:
+        raise InvalidHwpError(f"Corrupt HWPX (bad zip): {e}") from e
     blocks: List = []
-    for root in _iter_sections(path):
-        _emit_blocks(root, blocks)
-    return Document(format="hwpx", blocks=blocks)
+    with z:
+        version = _read_version(z)
+        for name in sorted(n for n in z.namelist() if _SECTION_RE.search(n)):
+            try:
+                root = ET.fromstring(z.read(name))
+            except ET.ParseError:
+                continue
+            _emit_blocks(root, blocks)
+    return Document(format="hwpx", blocks=blocks, version=version)

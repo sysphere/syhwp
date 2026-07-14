@@ -65,7 +65,9 @@ ZIP package (magic `PK\x03\x04`, mimetype `application/hwp+zip`). Text and table
 live in `Contents/section{N}.xml` as OWPML. Parsed with the standard library
 (`zipfile` + `xml.etree.ElementTree`), matching elements by local name
 (namespace-agnostic): `p` (paragraph), `t` (text run), `tbl`/`tr`/`tc`
-(table/row/cell). Tables render to GFM via `_markdown.py`.
+(table/row/cell), `equation` (with `script`), `pic` (image). Tables render to
+GFM via `_markdown.py`; version comes from `version.xml`
+(major.minor.micro.buildNumber).
 
 ## Public API (`__init__.py`)
 - `detect_format(path) -> "hwp5" | "hwpx"`
@@ -99,8 +101,10 @@ ODT path. The gaps that matter for the RAG use case, in priority order:
   footnotes on hand to verify against; emit `[^n]` markers once one is obtained.
 - ⏳ **Char-shape → markdown emphasis** — parse DocInfo char shapes to emit
   `**bold**` / `*italic*`.
-- ⏳ **Real test corpus** — snapshot tests over a collection of real documents
-  (fuzz is done; corpus is how maturity accrues vs pyhwp's 15 years).
+- ✅ **Corpus harness** — `tests/test_corpus.py` runs over real documents placed
+  in `tests/data/` (gitignored); skips in CI. Exercised on 22 varied HWP/HWPX
+  files (multiple versions incl. 5.0.2.x, equations, images, tables, and two
+  distribution-protected files that correctly raise `EncryptedDocumentError`).
 
 **Tier 2 — high value, higher effort**
 - **Distribution (배포용) document decoding** — clean-room the distdoc decryption
