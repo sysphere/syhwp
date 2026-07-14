@@ -39,7 +39,7 @@ parsing uses the standard library only.
 
 Alpha. See [DESIGN.md](DESIGN.md) for the architecture and roadmap.
 
-- **HWP 5.x** — text extraction (robust). Table grid reconstruction is in progress.
+- **HWP 5.x** — text and table extraction (tables reconstructed into GFM pipe tables).
 - **HWPX** — text and table extraction.
 - Password-protected / distribution (copy-protected) documents raise
   `EncryptedDocumentError` (their body streams are encrypted and cannot be read).

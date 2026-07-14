@@ -60,10 +60,12 @@ src/syhwp/
 
 ## 로드맵 (DESIGN.md 상세)
 
-- **v0 (현재)**: 포맷감지 + HWP5 텍스트 + HWPX 텍스트/표 + 암호감지.
-- **v0.1**: HWP5 **표 그리드 재구성** — 레코드 level 트리 + CTRL_HEADER(`tbl `) +
-  TABLE 레코드(행/열) + 셀 LIST_HEADER 그룹핑 → GFM.
-- **v0.2**: 구조화 API(`open() → Document`), 각주/캡션, 퍼즈 하드닝, 테스트 코퍼스.
+- **v0 (완료)**: 포맷감지 + HWP5 텍스트 + HWPX 텍스트/표 + 암호감지.
+- **v0.1 (완료)**: HWP5 **표 그리드 재구성** — 레코드 level 트리 + CTRL_HEADER(`tbl `,
+  파일에선 `b" lbt"`) + TABLE(77: nRows@4/nCols@6) + 셀 LIST_HEADER(72: nPara@0/
+  col@8/row@10/span@12,14) 그룹핑 → GFM. 중첩표는 셀 텍스트로 linearize.
+- **v0.2 (다음)**: 구조화 API(`open() → Document`), 병합셀(col/row span) 렌더,
+  각주/캡션, 퍼즈 하드닝, 실 테스트 코퍼스.
 
 ## 비목표
 

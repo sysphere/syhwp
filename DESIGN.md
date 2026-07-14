@@ -48,6 +48,18 @@ characters. Control chars occupying 8 code units (extended/inline objects):
 `{1–9, 11, 12, 14–23}`; occupying 1 unit (char controls): `{0, 10, 13, 24–31}`,
 of which 10/13 map to a newline. Everything else is literal text.
 
+**Tables** are reconstructed from the record tree (built from each record's
+`level`). A table is a `HWPTAG_CTRL_HEADER` (tag 71) whose first 4 payload bytes
+are the little-endian control id `"tbl "` (i.e. `b" lbt"`). Its children are:
+- `HWPTAG_TABLE` (tag 77): `n_rows` (uint16 @4), `n_cols` (uint16 @6).
+- repeated `HWPTAG_LIST_HEADER` (tag 72) — one per cell: `n_paragraphs`
+  (uint16 @0), then `col`/`row`/`col_span`/`row_span` (uint16 @8/@10/@12/@14) —
+  each followed by its `n_paragraphs` `HWPTAG_PARA_HEADER` (tag 66) subtrees,
+  which hold the cell's text. Cells are placed into a `n_rows × n_cols` grid and
+  rendered as GFM. Nested tables (a table inside a cell) linearize into that
+  cell's text. (Offsets were derived empirically from the public format, not
+  from `pyhwp` — see the clean-room note.)
+
 ### HWPX (`_hwpx.py`)
 ZIP package (magic `PK\x03\x04`, mimetype `application/hwp+zip`). Text and tables
 live in `Contents/section{N}.xml` as OWPML. Parsed with the standard library
@@ -61,14 +73,15 @@ live in `Contents/section{N}.xml` as OWPML. Parsed with the standard library
 - `extract_markdown(path) -> str`
 
 ## Roadmap
-- **v0 (now):** format detection; HWP5 text extraction; HWPX text + tables;
+- **v0 (done):** format detection; HWP5 text extraction; HWPX text + tables;
   encryption detection. Verified on real government documents, including files
   that crash `libhwp`.
-- **v0.1:** HWP5 **table grid reconstruction** — walk the record tree by `level`,
-  detect `CTRL_HEADER` with ctrl-id `tbl `, read the `TABLE` record (rows/cols,
-  spans) and per-cell `LIST_HEADER`, group cell paragraphs into a grid → GFM.
-- **v0.2:** structured API (`open() -> Document` with paragraphs/tables), inline
-  object metadata, footnotes/captions, test corpus + fuzz hardening.
+- **v0.1 (done):** HWP5 **table grid reconstruction** — walk the record tree by
+  `level`, detect `CTRL_HEADER` with ctrl-id `tbl `, read the `TABLE` record
+  (rows/cols) and per-cell `LIST_HEADER`, group cell paragraphs into a grid → GFM.
+- **v0.2 (next):** structured API (`open() -> Document` with paragraphs/tables),
+  cell merge (`col_span`/`row_span`) rendering, inline object metadata,
+  footnotes/captions, a real test corpus + fuzz hardening.
 - **later:** optional richer output (styles), performance, streaming.
 
 ## Non-goals
