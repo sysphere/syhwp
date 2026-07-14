@@ -1,139 +1,100 @@
-# syhwp — Design
+# syhwp — design & format notes
 
-## Goal
+A pure-Python, permissively-licensed reader for Korean HWP 5.x (legacy binary)
+and HWPX (OWPML) documents, producing plain text, GFM markdown, and HTML.
 
-A pure-Python, permissively licensed reader for Korean HWP 5.x (legacy binary)
-and HWPX (OWPML) documents, producing plain text and GFM markdown (tables as
-pipe tables). Primary use case: feeding Korean office documents into RAG /
-search / LLM pipelines where AGPL (`pyhwp`) and brittle/unmaintained bindings
-(`libhwp`) are not acceptable.
+Design priorities, in order:
 
-Design priorities, in order: **(1) permissive license, (2) robustness on
-real-world files, (3) zero-friction deployment (pure Python, one BSD dep),
-(4) fidelity (tables).**
+1. Permissive (MIT) license.
+2. Robustness on real-world files — degrade (skip) rather than crash.
+3. Zero-friction deployment — pure Python, a single small dependency.
+4. Fidelity — tables, equations, images.
 
 ## Clean-room provenance
 
 Implemented solely from HANCOM's published specifications:
-- *한글 문서 파일 형식 5.0* (HWP 5.0 binary record format) — OLE/CFBF container,
-  record stream layout, control characters.
-- *OWPML* (HWPX) — OPC/ZIP package, section XML.
 
-No code or structure is taken from the AGPL `pyhwp`. Apache-licensed references
-(`hwp.js`, `hwp-rs`) may be consulted for cross-checking behaviour only; any
-substantial reuse would require carrying Apache-2.0 + NOTICE, which we avoid by
-working from the spec. This provenance is what permits the MIT license.
+- *한글 문서 파일 형식 5.0* — the HWP 5.0 binary record format (OLE/CFBF
+  container, record stream layout, control characters).
+- *OWPML* — the HWPX package format (OPC/ZIP, section XML).
 
-## Formats
+No code or structure is taken from the AGPL-licensed `pyhwp`. This provenance is
+what permits the MIT license.
 
-### HWP 5.x (`_hwp5.py`)
+## Architecture
+
+```
+syhwp/
+  __init__.py   public API: detect_format / open / extract_text|markdown|html
+  models.py     Document, Paragraph, Table, Cell, Equation, Image
+  _records.py   HWP5 record iterator
+  _hwp5.py      HWP5 (OLE) reader
+  _hwpx.py      HWPX (OWPML) reader
+  _markdown.py  GFM table rendering
+  __main__.py   command-line interface
+```
+
+`open(path)` detects the format by magic bytes and returns a `Document` — an
+ordered list of blocks (`Paragraph`, `Table`, `Equation`, `Image`). The
+`extract_*` helpers render that document to text, markdown, or HTML.
+
+## HWP 5.x format (`_hwp5.py`)
+
 OLE compound file (magic `D0CF11E0…`). Relevant streams:
-- `FileHeader` — 32-byte signature `"HWP Document File"`, then version (uint32)
-  and properties (uint32). Property bit 0 = compressed, bit 1 = password,
-  bit 2 = distribution (copy-protected). Bits 1/2 ⇒ body is encrypted ⇒ we raise
-  `EncryptedDocumentError`.
-- `BodyText/Section{N}` — the content. If compressed, raw DEFLATE
+
+- **`FileHeader`** — 32-byte signature `"HWP Document File"`, then a version
+  uint32 and a properties uint32. Property bit 0 = compressed, bit 1 = password,
+  bit 2 = distribution (copy-protected). Bits 1/2 mean the body is encrypted, so
+  the reader raises `EncryptedDocumentError`.
+- **`BodyText/Section{N}`** — the content. When compressed, it is raw DEFLATE
   (`zlib.decompress(data, -15)`).
-- `DocInfo` — styles / char shapes / bindata map. **Not required for text or
-  table extraction**, so we do not parse it. (This is a robustness win: `libhwp`
-  panics inside DocInfo style parsing on files we read fine.)
+- **`DocInfo`** — fonts / styles / bindata map. Not needed for text or table
+  extraction, so it is not parsed.
 
-**Records** (`_records.py`): each record is a uint32 header —
-`tag = bits 0–9`, `level = bits 10–19`, `size = bits 20–31`; if `size == 0xFFF`
-the real size is the following uint32 — then `size` bytes of payload. Unknown
-tags are skipped.
+**Records** (`_records.py`): each record starts with a little-endian uint32
+header — `tag` = bits 0–9, `level` = bits 10–19, `size` = bits 20–31; if
+`size == 0xFFF` the real size is the following uint32. Unknown tags are skipped,
+and truncated streams stop cleanly.
 
-**Text** (`HWPTAG_PARA_TEXT`, tag 67): UTF-16LE code units with inline control
-characters. Control chars occupying 8 code units (extended/inline objects):
-`{1–9, 11, 12, 14–23}`; occupying 1 unit (char controls): `{0, 10, 13, 24–31}`,
-of which 10/13 map to a newline. Everything else is literal text.
+**Text** (`PARA_TEXT`, tag 67): UTF-16LE code units interleaved with control
+characters. Controls occupying 8 code units: `{1–9, 11, 12, 14–23}`; occupying 1
+unit: `{0, 10, 13, 24–31}` (10/13 → newline). Everything else is literal text.
 
 **Tables** are reconstructed from the record tree (built from each record's
-`level`). A table is a `HWPTAG_CTRL_HEADER` (tag 71) whose first 4 payload bytes
-are the little-endian control id `"tbl "` (i.e. `b" lbt"`). Its children are:
-- `HWPTAG_TABLE` (tag 77): `n_rows` (uint16 @4), `n_cols` (uint16 @6).
-- repeated `HWPTAG_LIST_HEADER` (tag 72) — one per cell: `n_paragraphs`
-  (uint16 @0), then `col`/`row`/`col_span`/`row_span` (uint16 @8/@10/@12/@14) —
-  each followed by its `n_paragraphs` `HWPTAG_PARA_HEADER` (tag 66) subtrees,
-  which hold the cell's text. Cells are placed into a `n_rows × n_cols` grid and
-  rendered as GFM. Nested tables (a table inside a cell) linearize into that
-  cell's text. (Offsets were derived empirically from the public format, not
-  from `pyhwp` — see the clean-room note.)
+`level`). A table is a `CTRL_HEADER` (tag 71) whose first 4 payload bytes are the
+little-endian control id `"tbl "`. Its children are:
 
-### HWPX (`_hwpx.py`)
-ZIP package (magic `PK\x03\x04`, mimetype `application/hwp+zip`). Text and tables
-live in `Contents/section{N}.xml` as OWPML. Parsed with the standard library
-(`zipfile` + `xml.etree.ElementTree`), matching elements by local name
-(namespace-agnostic): `p` (paragraph), `t` (text run), `tbl`/`tr`/`tc`
-(table/row/cell), `equation` (with `script`), `pic` (image). Tables render to
-GFM via `_markdown.py`; version comes from `version.xml`
+- `TABLE` (tag 77): `n_rows` (uint16 @4), `n_cols` (uint16 @6).
+- repeated `LIST_HEADER` (tag 72), one per cell: `n_paragraphs` (uint16 @0), then
+  `col` / `row` / `col_span` / `row_span` (uint16 @8/@10/@12/@14), each followed
+  by its `n_paragraphs` `PARA_HEADER` (tag 66) subtrees holding the cell's text.
+
+Cells are placed into an `n_rows × n_cols` grid. Nested tables linearize into the
+containing cell's text. Equations (`eqed` control → `EQEDIT` record, tag 88) are
+surfaced as their script; images (`gso` control) as a placeholder. All record
+offsets were derived empirically from the public format.
+
+## HWPX format (`_hwpx.py`)
+
+ZIP package (magic `PK\x03\x04`, mimetype `application/hwp+zip`). Content lives in
+`Contents/section{N}.xml` as OWPML, parsed with the standard library (`zipfile` +
+`xml.etree.ElementTree`) by matching elements on local name (namespace-agnostic):
+`p` (paragraph), `t` (text run), `tbl`/`tr`/`tc` (table/row/cell), `equation`
+(with `script`), `pic` (image). The document version comes from `version.xml`
 (major.minor.micro.buildNumber).
 
-## Public API (`__init__.py`)
-- `detect_format(path) -> "hwp5" | "hwpx"`
-- `extract_text(path) -> str`
-- `extract_markdown(path) -> str`
-
 ## Roadmap
-- **v0 (done):** format detection; HWP5 text extraction; HWPX text + tables;
-  encryption detection. Verified on real government documents, including files
-  that crash `libhwp`.
-- **v0.1 (done):** HWP5 **table grid reconstruction** — walk the record tree by
-  `level`, detect `CTRL_HEADER` with ctrl-id `tbl `, read the `TABLE` record
-  (rows/cols) and per-cell `LIST_HEADER`, group cell paragraphs into a grid → GFM.
-- **v0.2 (done):** structured API — `open() -> Document` with `.paragraphs` /
-  `.tables`; `Table` (`n_rows`, `n_cols`, `cells`), `Cell` (`row`, `col`,
-  `row_span`, `col_span`, `text`). `col_span`/`row_span` are captured in the
-  model (GFM output still leaves merged slots blank — GFM cannot merge cells).
-### Enhancement roadmap (prioritized for RAG / document ingestion)
 
-`syhwp` is an *extraction* library, not a full-fidelity converter like pyhwp's
-ODT path. The gaps that matter for the RAG use case, in priority order:
-
-**Tier 1 — coverage & robustness**
-- ✅ **Version-aware parsing** — FileHeader version captured on `Document.version`
-  (field-offset branching per sub-version to follow as older files surface).
-- ✅ **Inline objects** — equations → their script (`[수식: …]`), images/drawing
-  objects → `[그림]`, at top level and inside table cells.
-- ✅ **Fuzz / defensive hardening** — corrupt OLE/zip, decompression bombs, and
-  truncated streams raise `SyhwpError` instead of crashing (fuzz-tested).
-- ⏳ **Footnotes / endnotes & captions** — deferred: no sample document with
-  footnotes on hand to verify against; emit `[^n]` markers once one is obtained.
-- ⏳ **Char-shape → markdown emphasis** — parse DocInfo char shapes to emit
-  `**bold**` / `*italic*`.
-- ✅ **Corpus harness** — `tests/test_corpus.py` runs over real documents placed
-  in `tests/data/` (gitignored); skips in CI. Exercised on 22 varied HWP/HWPX
-  files (multiple versions incl. 5.0.2.x, equations, images, tables, and two
-  distribution-protected files that correctly raise `EncryptedDocumentError`).
-
-**Tier 2 — high value, higher effort**
-- **Distribution (배포용) document decoding** — *deferred, not guessed.* Confirmed
-  two protected samples (FileHeader distribution bit set; the section stream is
-  obfuscated from byte 0, seed at bytes[0:4]). Correctly rejected today with
-  `EncryptedDocumentError` (no crash). Real decoding needs the authoritative
-  HANCOM distribution-doc spec (seed → LCG de-obfuscation → AES-128 key) plus an
-  AES backend — implemented clean-room from the spec and verified against the
-  samples, not reverse-engineered by guesswork. AES would be an optional extra
-  (`syhwp[crypto]`) to keep the core dependency-free.
-- Nested-table rendering (HTML / indented), HWPX cell spans & images.
-
-**Tier 3 — convenience / fidelity**
-- ✅ `extract_html()` / `Document.html`; ✅ CLI (`syhwp` / `python -m syhwp`,
-  `--text/--markdown/--html`); ✅ `py.typed`.
-- ⏳ hyperlinks → markdown links, streaming.
-
-**Quality (feature-independent):** decompression-bomb & recursion-depth guards,
-benchmarks vs pyhwp / libhwp (speed + coverage on a corpus).
-
-### vs pyhwp — where syhwp already differs
-Ahead: MIT (vs AGPL); HWPX support (pyhwp is HWP5-only); markdown output;
-robustness (skips DocInfo styling, the area that crashes libhwp; unknown records
-are skipped, not fatal); pure Python, one BSD dep, 3.9–3.13.
-Behind: distribution-doc decoding, rich styles/images/equations, footnotes,
-version-specific coverage, and 15 years of real-file maturity.
+- Footnotes / endnotes and captions.
+- Character-shape aware output (bold / italic from `DocInfo`).
+- Distribution (copy-protected) document decoding — requires the HANCOM
+  distribution-doc spec (seed → de-obfuscation → AES) implemented clean-room; the
+  AES backend would be an optional extra to keep the core dependency-free.
+- Hyperlinks as markdown links; richer HWPX object support.
 
 ## Non-goals
-- Writing/editing HWP files (read-only).
-- Rendering/layout fidelity (we target content extraction, not pixel fidelity).
-- Decrypting password/distribution-protected documents.
-- HWP 3.x and earlier (different, pre-5.0 format).
+
+- Writing or editing HWP files (read-only).
+- Pixel-perfect layout fidelity — this is content extraction.
+- Decrypting password / distribution-protected documents.
+- HWP 3.x and earlier (a different, pre-5.0 format).
