@@ -10,7 +10,8 @@ import xml.etree.ElementTree as ET
 import zipfile
 from typing import Iterator, List
 
-from ._markdown import escape_cell, grid_to_markdown, normalize
+from ._markdown import normalize
+from .models import Cell, Document, Paragraph, Table
 
 _SECTION_RE = re.compile(r"(?:^|/)section\d+\.xml$", re.IGNORECASE)
 
@@ -43,23 +44,26 @@ def _direct(el, name: str) -> List:
     return found
 
 
-def _render_table(tbl) -> str:
-    grid = [
-        [escape_cell(_cell_text(tc)) for tc in _direct(tr, "tc")]
-        for tr in _direct(tbl, "tr")
-    ]
-    return grid_to_markdown(grid)
+def _build_table(tbl) -> Table:
+    rows = _direct(tbl, "tr")
+    n_cols = 0
+    cells: List[Cell] = []
+    for r, tr in enumerate(rows):
+        tcs = _direct(tr, "tc")
+        n_cols = max(n_cols, len(tcs))
+        for c, tc in enumerate(tcs):
+            cells.append(Cell(row=r, col=c, text=_cell_text(tc)))
+    return Table(n_rows=len(rows), n_cols=n_cols, cells=cells)
 
 
-def _blocks(root, tables_as_markdown: bool) -> List[str]:
-    blocks: List[str] = []
+def _emit_blocks(root, blocks: List) -> None:
     para: List[str] = []
 
     def flush():
         if para:
             text = normalize("".join(para))
             if text:
-                blocks.append(text)
+                blocks.append(Paragraph(text))
             para.clear()
 
     def rec(node):
@@ -67,16 +71,7 @@ def _blocks(root, tables_as_markdown: bool) -> List[str]:
             ln = _local(child.tag)
             if ln == "tbl":
                 flush()
-                if tables_as_markdown:
-                    md = _render_table(child)
-                    if md:
-                        blocks.append(md)
-                else:
-                    for tr in _direct(child, "tr"):
-                        for tc in _direct(tr, "tc"):
-                            txt = _cell_text(tc)
-                            if txt:
-                                blocks.append(txt)
+                blocks.append(_build_table(child))
             elif ln == "t":
                 para.append("".join(child.itertext()))
             elif ln == "p":
@@ -87,7 +82,6 @@ def _blocks(root, tables_as_markdown: bool) -> List[str]:
 
     rec(root)
     flush()
-    return blocks
 
 
 def _iter_sections(path) -> Iterator["ET.Element"]:
@@ -99,15 +93,9 @@ def _iter_sections(path) -> Iterator["ET.Element"]:
                 continue
 
 
-def extract_markdown_hwpx(path) -> str:
-    out: List[str] = []
+def read_document_hwpx(path) -> Document:
+    """Parse an HWPX document into a :class:`Document`."""
+    blocks: List = []
     for root in _iter_sections(path):
-        out.extend(_blocks(root, tables_as_markdown=True))
-    return "\n\n".join(out)
-
-
-def extract_text_hwpx(path) -> str:
-    out: List[str] = []
-    for root in _iter_sections(path):
-        out.extend(_blocks(root, tables_as_markdown=False))
-    return "\n\n".join(out)
+        _emit_blocks(root, blocks)
+    return Document(format="hwpx", blocks=blocks)

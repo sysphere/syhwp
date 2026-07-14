@@ -64,8 +64,11 @@ src/syhwp/
 - **v0.1 (완료)**: HWP5 **표 그리드 재구성** — 레코드 level 트리 + CTRL_HEADER(`tbl `,
   파일에선 `b" lbt"`) + TABLE(77: nRows@4/nCols@6) + 셀 LIST_HEADER(72: nPara@0/
   col@8/row@10/span@12,14) 그룹핑 → GFM. 중첩표는 셀 텍스트로 linearize.
-- **v0.2 (다음)**: 구조화 API(`open() → Document`), 병합셀(col/row span) 렌더,
-  각주/캡션, 퍼즈 하드닝, 실 테스트 코퍼스.
+- **v0.2 (완료)**: 구조화 API `open() → Document`(.paragraphs/.tables),
+  Table(n_rows/n_cols/cells)·Cell(row/col/row_span/col_span/text). 병합셀 span은
+  모델에 포착(GFM 출력은 병합 불가라 빈칸 유지).
+- **v0.3 (다음)**: 각주/미주·캡션, 인라인 개체(이미지/수식) placeholder, HWPX 셀 span,
+  실 테스트 코퍼스 + 퍼즈 하드닝.
 
 ## 비목표
 

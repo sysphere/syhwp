@@ -79,10 +79,45 @@ live in `Contents/section{N}.xml` as OWPML. Parsed with the standard library
 - **v0.1 (done):** HWP5 **table grid reconstruction** — walk the record tree by
   `level`, detect `CTRL_HEADER` with ctrl-id `tbl `, read the `TABLE` record
   (rows/cols) and per-cell `LIST_HEADER`, group cell paragraphs into a grid → GFM.
-- **v0.2 (next):** structured API (`open() -> Document` with paragraphs/tables),
-  cell merge (`col_span`/`row_span`) rendering, inline object metadata,
-  footnotes/captions, a real test corpus + fuzz hardening.
-- **later:** optional richer output (styles), performance, streaming.
+- **v0.2 (done):** structured API — `open() -> Document` with `.paragraphs` /
+  `.tables`; `Table` (`n_rows`, `n_cols`, `cells`), `Cell` (`row`, `col`,
+  `row_span`, `col_span`, `text`). `col_span`/`row_span` are captured in the
+  model (GFM output still leaves merged slots blank — GFM cannot merge cells).
+### Enhancement roadmap (prioritized for RAG / document ingestion)
+
+`syhwp` is an *extraction* library, not a full-fidelity converter like pyhwp's
+ODT path. The gaps that matter for the RAG use case, in priority order:
+
+**Tier 1 — coverage & robustness**
+- **Version-aware parsing** — capture the FileHeader version; guard record field
+  offsets that differ across 5.0.x sub-versions (avoid misreads on older files).
+- **Footnotes / endnotes & captions** — extract their content (currently a
+  content gap); emit `[^n]` markers.
+- **Inline object placeholders** — images/drawing objects → `[그림]`; equations →
+  the equation script (currently dropped; e.g. many formula-heavy gov docs).
+- **Char-shape → markdown emphasis** — parse DocInfo char shapes to emit
+  `**bold**` / `*italic*`.
+- **Test corpus + fuzz** — snapshot tests over real documents and fuzz malformed
+  input (never crash) — this is how maturity is accrued vs pyhwp's 15 years.
+
+**Tier 2 — high value, higher effort**
+- **Distribution (배포용) document decoding** — clean-room the distdoc decryption
+  so copy-protected government documents (very common) become readable.
+- Nested-table rendering (HTML / indented), HWPX cell spans & images.
+
+**Tier 3 — convenience / fidelity**
+- `extract_html()`, a CLI (`python -m syhwp`), hyperlinks → markdown links,
+  streaming, `py.typed`.
+
+**Quality (feature-independent):** decompression-bomb & recursion-depth guards,
+benchmarks vs pyhwp / libhwp (speed + coverage on a corpus).
+
+### vs pyhwp — where syhwp already differs
+Ahead: MIT (vs AGPL); HWPX support (pyhwp is HWP5-only); markdown output;
+robustness (skips DocInfo styling, the area that crashes libhwp; unknown records
+are skipped, not fatal); pure Python, one BSD dep, 3.9–3.13.
+Behind: distribution-doc decoding, rich styles/images/equations, footnotes,
+version-specific coverage, and 15 years of real-file maturity.
 
 ## Non-goals
 - Writing/editing HWP files (read-only).

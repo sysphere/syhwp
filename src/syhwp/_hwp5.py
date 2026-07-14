@@ -13,9 +13,10 @@ from typing import Iterator, List, Optional, Tuple
 
 import olefile
 
-from ._markdown import escape_cell, grid_to_markdown, normalize
+from ._markdown import normalize
 from ._records import iter_records
 from .exceptions import EncryptedDocumentError, InvalidHwpError
+from .models import Cell, Document, Paragraph, Table
 
 _SIGNATURE = b"HWP Document File"
 
@@ -189,38 +190,44 @@ def _cell_text(paragraphs: List[_Node]) -> str:
     return normalize(" ".join(parts))
 
 
-def _render_table(ctrl: _Node) -> str:
-    """Render a table CTRL_HEADER node as a GFM pipe table."""
+def _build_table(ctrl: _Node) -> Optional[Table]:
+    """Build a :class:`Table` from a table CTRL_HEADER node."""
     table_rec = next((c for c in ctrl.children if c.tag == HWPTAG_TABLE), None)
     if table_rec is None or len(table_rec.payload) < 8:
-        return ""
+        return None
     n_rows, n_cols = table_dimensions(table_rec.payload)
     if n_rows <= 0 or n_cols <= 0:
-        return ""
-    grid = [["" for _ in range(n_cols)] for _ in range(n_rows)]
+        return None
 
+    cells: List[Cell] = []
     children = ctrl.children
     i = 0
     while i < len(children):
         node = children[i]
         if node.tag == HWPTAG_LIST_HEADER and len(node.payload) >= 16:
-            n_para, col, row, _cs, _rs = cell_address(node.payload)
+            n_para, col, row, col_span, row_span = cell_address(node.payload)
             i += 1
             paras: List[_Node] = []
             while i < len(children) and len(paras) < n_para:
                 if children[i].tag == HWPTAG_PARA_HEADER:
                     paras.append(children[i])
                 i += 1
-            if 0 <= row < n_rows and 0 <= col < n_cols:
-                grid[row][col] = escape_cell(_cell_text(paras))
+            cells.append(
+                Cell(
+                    row=row,
+                    col=col,
+                    text=_cell_text(paras),
+                    row_span=max(1, row_span),
+                    col_span=max(1, col_span),
+                )
+            )
         else:
             i += 1
-    return grid_to_markdown(grid)
+    return Table(n_rows=n_rows, n_cols=n_cols, cells=cells)
 
 
-def _paragraph_blocks(para: _Node) -> List[str]:
-    """A top-level paragraph → its text, then any tables anchored in it."""
-    blocks: List[str] = []
+def _emit_paragraph(para: _Node, blocks: List) -> None:
+    """Append a top-level paragraph's text, then any tables anchored in it."""
     text = normalize(
         " ".join(
             decode_para_text(c.payload)
@@ -229,41 +236,20 @@ def _paragraph_blocks(para: _Node) -> List[str]:
         )
     )
     if text:
-        blocks.append(text)
+        blocks.append(Paragraph(text))
     for c in para.children:
         if c.tag == HWPTAG_CTRL_HEADER and is_table_control(c.payload):
-            md = _render_table(c)
-            if md:
-                blocks.append(md)
-    return blocks
+            table = _build_table(c)
+            if table is not None:
+                blocks.append(table)
 
 
-# --------------------------------------------------------------------------- #
-# Public entry points
-# --------------------------------------------------------------------------- #
-
-def extract_text_hwp5(path) -> str:
-    """Extract plain text from an HWP 5.x document, in reading order.
-
-    Table cell contents are included inline (in reading order).
-    """
-    parts: List[str] = []
-    for records in _iter_sections(path):
-        for tag, _level, payload in records:
-            if tag == HWPTAG_PARA_TEXT:
-                text = decode_para_text(payload)
-                if text.strip():
-                    parts.append(text)
-    return "\n".join(parts)
-
-
-def extract_markdown_hwp5(path) -> str:
-    """Extract GFM markdown from an HWP 5.x document, with tables reconstructed
-    into pipe tables."""
-    blocks: List[str] = []
+def read_document_hwp5(path) -> Document:
+    """Parse an HWP 5.x document into a :class:`Document`."""
+    blocks: List = []
     for records in _iter_sections(path):
         root = _build_tree(records)
         for node in root.children:
             if node.tag == HWPTAG_PARA_HEADER:
-                blocks.extend(_paragraph_blocks(node))
-    return "\n\n".join(blocks)
+                _emit_paragraph(node, blocks)
+    return Document(format="hwp5", blocks=blocks)

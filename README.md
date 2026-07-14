@@ -6,8 +6,16 @@ and tables, with no external services and a permissive license.
 ```python
 import syhwp
 
+# convenience
 text = syhwp.extract_text("report.hwp")        # plain text
 md   = syhwp.extract_markdown("report.hwpx")   # GFM markdown (tables as pipe tables)
+
+# structured access
+doc = syhwp.open("report.hwp")                 # -> Document
+for table in doc.tables:                       # Table: n_rows, n_cols, cells[...]
+    print(table.to_markdown())
+for para in doc.paragraphs:                     # Paragraph: text
+    print(para.text)
 ```
 
 Format (HWP vs HWPX) is auto-detected. Works the same for `.hwp` and `.hwpx`.
