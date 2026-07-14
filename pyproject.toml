@@ -4,25 +4,48 @@ build-backend = "hatchling.build"
 
 [project]
 name = "syhwp"
-version = "0.0.6"
-description = "Pure-Python reader for Korean HWP 5.x and HWPX documents — text and tables. Clean-room, permissively licensed."
+version = "0.0.7"
+description = "Read Korean HWP and HWPX (Hancom Office / 한글) documents in pure Python — text, tables, Markdown, HTML."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
 authors = [{ name = "sysphere" }]
-keywords = ["hwp", "hwpx", "hancom", "korean", "parser", "text-extraction", "rag"]
+keywords = [
+    "hwp",
+    "hwpx",
+    "hwp5",
+    "owpml",
+    "hancom",
+    "hancom-office",
+    "한글",
+    "korean",
+    "parser",
+    "reader",
+    "text-extraction",
+    "hwp-to-text",
+    "hwp-to-markdown",
+    "markdown",
+    "document",
+    "rag",
+]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
     "License :: OSI Approved :: MIT License",
     "Natural Language :: Korean",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business",
+    "Topic :: Text Processing",
     "Topic :: Text Processing :: Markup",
+    "Topic :: Text Processing :: Markup :: HTML",
+    "Topic :: Text Processing :: Markup :: Markdown",
 ]
 dependencies = ["olefile>=0.46"]
 
@@ -36,6 +59,7 @@ syhwp = "syhwp.__main__:main"
 Homepage = "https://github.com/sysphere/syhwp"
 Source = "https://github.com/sysphere/syhwp"
 Issues = "https://github.com/sysphere/syhwp/issues"
+Changelog = "https://github.com/sysphere/syhwp/blob/main/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/syhwp"]
