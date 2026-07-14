@@ -56,7 +56,35 @@ class Paragraph:
         return self.text
 
 
-Block = Union[Paragraph, Table]
+@dataclass
+class Equation:
+    """An inline equation. ``script`` is HANCOM's equation syntax (not LaTeX)."""
+
+    script: str = ""
+
+    @property
+    def text(self) -> str:
+        return f"[수식: {self.script}]" if self.script else "[수식]"
+
+    def to_markdown(self) -> str:
+        return self.text
+
+
+@dataclass
+class Image:
+    """A placeholder for a picture / drawing object (binary not extracted)."""
+
+    alt: str = "그림"
+
+    @property
+    def text(self) -> str:
+        return f"[{self.alt}]"
+
+    def to_markdown(self) -> str:
+        return self.text
+
+
+Block = Union[Paragraph, Table, Equation, Image]
 
 
 @dataclass
@@ -65,6 +93,7 @@ class Document:
 
     format: str  # "hwp5" or "hwpx"
     blocks: List[Block] = field(default_factory=list)
+    version: str = ""
 
     @property
     def paragraphs(self) -> List[Paragraph]:
@@ -73,6 +102,10 @@ class Document:
     @property
     def tables(self) -> List[Table]:
         return [b for b in self.blocks if isinstance(b, Table)]
+
+    @property
+    def equations(self) -> List[Equation]:
+        return [b for b in self.blocks if isinstance(b, Equation)]
 
     @property
     def text(self) -> str:

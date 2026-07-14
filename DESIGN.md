@@ -89,16 +89,18 @@ live in `Contents/section{N}.xml` as OWPML. Parsed with the standard library
 ODT path. The gaps that matter for the RAG use case, in priority order:
 
 **Tier 1 — coverage & robustness**
-- **Version-aware parsing** — capture the FileHeader version; guard record field
-  offsets that differ across 5.0.x sub-versions (avoid misreads on older files).
-- **Footnotes / endnotes & captions** — extract their content (currently a
-  content gap); emit `[^n]` markers.
-- **Inline object placeholders** — images/drawing objects → `[그림]`; equations →
-  the equation script (currently dropped; e.g. many formula-heavy gov docs).
-- **Char-shape → markdown emphasis** — parse DocInfo char shapes to emit
+- ✅ **Version-aware parsing** — FileHeader version captured on `Document.version`
+  (field-offset branching per sub-version to follow as older files surface).
+- ✅ **Inline objects** — equations → their script (`[수식: …]`), images/drawing
+  objects → `[그림]`, at top level and inside table cells.
+- ✅ **Fuzz / defensive hardening** — corrupt OLE/zip, decompression bombs, and
+  truncated streams raise `SyhwpError` instead of crashing (fuzz-tested).
+- ⏳ **Footnotes / endnotes & captions** — deferred: no sample document with
+  footnotes on hand to verify against; emit `[^n]` markers once one is obtained.
+- ⏳ **Char-shape → markdown emphasis** — parse DocInfo char shapes to emit
   `**bold**` / `*italic*`.
-- **Test corpus + fuzz** — snapshot tests over real documents and fuzz malformed
-  input (never crash) — this is how maturity is accrued vs pyhwp's 15 years.
+- ⏳ **Real test corpus** — snapshot tests over a collection of real documents
+  (fuzz is done; corpus is how maturity accrues vs pyhwp's 15 years).
 
 **Tier 2 — high value, higher effort**
 - **Distribution (배포용) document decoding** — clean-room the distdoc decryption

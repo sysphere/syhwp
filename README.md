@@ -47,8 +47,12 @@ parsing uses the standard library only.
 
 Alpha. See [DESIGN.md](DESIGN.md) for the architecture and roadmap.
 
-- **HWP 5.x** — text and table extraction (tables reconstructed into GFM pipe tables).
+- **HWP 5.x** — text and table extraction (tables reconstructed into GFM pipe
+  tables); equations surfaced as their script, images/drawings as `[그림]`;
+  document version exposed on `Document.version`.
 - **HWPX** — text and table extraction.
+- Robust by design: unknown records are skipped, and malformed / corrupt files
+  raise a `SyhwpError` subclass rather than crashing (fuzz-tested).
 - Password-protected / distribution (copy-protected) documents raise
   `EncryptedDocumentError` (their body streams are encrypted and cannot be read).
 

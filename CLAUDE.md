@@ -67,8 +67,9 @@ src/syhwp/
 - **v0.2 (완료)**: 구조화 API `open() → Document`(.paragraphs/.tables),
   Table(n_rows/n_cols/cells)·Cell(row/col/row_span/col_span/text). 병합셀 span은
   모델에 포착(GFM 출력은 병합 불가라 빈칸 유지).
-- **v0.3 (다음)**: 각주/미주·캡션, 인라인 개체(이미지/수식) placeholder, HWPX 셀 span,
-  실 테스트 코퍼스 + 퍼즈 하드닝.
+- **v0.3 (진행)**: ✅ 버전 캡처(Document.version) ✅ 인라인 개체(수식 스크립트 `[수식:]`,
+  그림 `[그림]`, 셀 내부 포함) ✅ 퍼즈/방어 하드닝(OLE/zip 오류·압축폭탄→SyhwpError).
+  ⏳ 각주/미주(샘플 없어 보류) ⏳ 문자서식→마크다운 강조 ⏳ 실 코퍼스.
 
 ## 비목표
 

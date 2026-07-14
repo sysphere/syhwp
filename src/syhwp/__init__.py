@@ -17,9 +17,9 @@ from .exceptions import (
     SyhwpError,
     UnsupportedFormatError,
 )
-from .models import Cell, Document, Paragraph, Table
+from .models import Cell, Document, Equation, Image, Paragraph, Table
 
-__version__ = "0.0.2"
+__version__ = "0.0.3"
 
 __all__ = [
     "open",
@@ -30,6 +30,8 @@ __all__ = [
     "Paragraph",
     "Table",
     "Cell",
+    "Equation",
+    "Image",
     "SyhwpError",
     "UnsupportedFormatError",
     "InvalidHwpError",

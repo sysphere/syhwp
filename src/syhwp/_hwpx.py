@@ -11,6 +11,7 @@ import zipfile
 from typing import Iterator, List
 
 from ._markdown import normalize
+from .exceptions import InvalidHwpError
 from .models import Cell, Document, Paragraph, Table
 
 _SECTION_RE = re.compile(r"(?:^|/)section\d+\.xml$", re.IGNORECASE)
@@ -85,7 +86,11 @@ def _emit_blocks(root, blocks: List) -> None:
 
 
 def _iter_sections(path) -> Iterator["ET.Element"]:
-    with zipfile.ZipFile(path) as z:
+    try:
+        z = zipfile.ZipFile(path)
+    except zipfile.BadZipFile as e:
+        raise InvalidHwpError(f"Corrupt HWPX (bad zip): {e}") from e
+    with z:
         for name in sorted(n for n in z.namelist() if _SECTION_RE.search(n)):
             try:
                 yield ET.fromstring(z.read(name))
