@@ -37,4 +37,4 @@ publishing / OIDC — no token needed). To cut a release:
   environment `pypi`.
 - The PyPI project page shows the README of the *published* version, so a
   docs-only change only appears on PyPI after a new release.
-- If a downstream (e.g. Cloosphere) pins `syhwp==X.Y.Z`, bump that pin too.
+- If a downstream project pins `syhwp==X.Y.Z`, bump that pin too.
