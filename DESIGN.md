@@ -112,8 +112,9 @@ ODT path. The gaps that matter for the RAG use case, in priority order:
 - Nested-table rendering (HTML / indented), HWPX cell spans & images.
 
 **Tier 3 — convenience / fidelity**
-- `extract_html()`, a CLI (`python -m syhwp`), hyperlinks → markdown links,
-  streaming, `py.typed`.
+- ✅ `extract_html()` / `Document.html`; ✅ CLI (`syhwp` / `python -m syhwp`,
+  `--text/--markdown/--html`); ✅ `py.typed`.
+- ⏳ hyperlinks → markdown links, streaming.
 
 **Quality (feature-independent):** decompression-bomb & recursion-depth guards,
 benchmarks vs pyhwp / libhwp (speed + coverage on a corpus).

@@ -1,10 +1,12 @@
 """Structured document model shared by the HWP 5.x and HWPX readers.
 
-A :class:`Document` is an ordered list of blocks — :class:`Paragraph` or
-:class:`Table` — mirroring reading order. Both block types expose ``.text`` and
-``.to_markdown()`` so the document can render either representation uniformly.
+A :class:`Document` is an ordered list of blocks — :class:`Paragraph`,
+:class:`Table`, :class:`Equation`, or :class:`Image` — mirroring reading order.
+Every block exposes ``.text``, ``.to_markdown()`` and ``.to_html()`` so the
+document can render uniformly.
 """
 
+import html as _html
 from dataclasses import dataclass, field
 from typing import List, Union
 
@@ -47,6 +49,13 @@ class Table:
             [[escape_cell(cell) for cell in row] for row in self.grid()]
         )
 
+    def to_html(self) -> str:
+        rows = [
+            "<tr>" + "".join(f"<td>{_html.escape(c)}</td>" for c in row) + "</tr>"
+            for row in self.grid()
+        ]
+        return "<table>\n" + "\n".join(rows) + "\n</table>"
+
 
 @dataclass
 class Paragraph:
@@ -54,6 +63,9 @@ class Paragraph:
 
     def to_markdown(self) -> str:
         return self.text
+
+    def to_html(self) -> str:
+        return f"<p>{_html.escape(self.text)}</p>"
 
 
 @dataclass
@@ -69,6 +81,9 @@ class Equation:
     def to_markdown(self) -> str:
         return self.text
 
+    def to_html(self) -> str:
+        return f'<p class="equation">{_html.escape(self.text)}</p>'
+
 
 @dataclass
 class Image:
@@ -82,6 +97,9 @@ class Image:
 
     def to_markdown(self) -> str:
         return self.text
+
+    def to_html(self) -> str:
+        return f'<p class="image">{_html.escape(self.text)}</p>'
 
 
 Block = Union[Paragraph, Table, Equation, Image]
@@ -109,9 +127,7 @@ class Document:
 
     @property
     def text(self) -> str:
-        return "\n".join(
-            b.text for b in self.blocks if normalize(b.text)
-        )
+        return "\n".join(b.text for b in self.blocks if normalize(b.text))
 
     @property
     def markdown(self) -> str:
@@ -121,3 +137,8 @@ class Document:
             if md.strip():
                 out.append(md)
         return "\n\n".join(out)
+
+    @property
+    def html(self) -> str:
+        body = "\n".join(b.to_html() for b in self.blocks if normalize(b.text))
+        return f"<!doctype html>\n<html>\n<body>\n{body}\n</body>\n</html>"

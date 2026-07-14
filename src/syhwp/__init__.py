@@ -19,13 +19,14 @@ from .exceptions import (
 )
 from .models import Cell, Document, Equation, Image, Paragraph, Table
 
-__version__ = "0.0.4"
+__version__ = "0.0.5"
 
 __all__ = [
     "open",
     "detect_format",
     "extract_text",
     "extract_markdown",
+    "extract_html",
     "Document",
     "Paragraph",
     "Table",
@@ -72,3 +73,8 @@ def extract_text(path) -> str:
 def extract_markdown(path) -> str:
     """Extract GFM markdown (tables as pipe tables) from HWP 5.x or HWPX."""
     return open(path).markdown
+
+
+def extract_html(path) -> str:
+    """Extract a standalone HTML document (tables as ``<table>``) from HWP/HWPX."""
+    return open(path).html

@@ -20,6 +20,13 @@ for para in doc.paragraphs:                     # Paragraph: text
 
 Format (HWP vs HWPX) is auto-detected. Works the same for `.hwp` and `.hwpx`.
 
+Also available as a command line tool:
+
+```bash
+syhwp report.hwp                 # markdown (default); also --text / --html
+python -m syhwp report.hwpx
+```
+
 ## Why
 
 The existing Python options each have a blocking flaw for use in commercial or

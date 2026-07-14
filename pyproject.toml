@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "syhwp"
-version = "0.0.4"
+version = "0.0.5"
 description = "Pure-Python reader for Korean HWP 5.x and HWPX documents — text and tables. Clean-room, permissively licensed."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -28,6 +28,9 @@ dependencies = ["olefile>=0.46"]
 
 [project.optional-dependencies]
 test = ["pytest>=7"]
+
+[project.scripts]
+syhwp = "syhwp.__main__:main"
 
 [project.urls]
 Homepage = "https://github.com/sysphere/syhwp"
