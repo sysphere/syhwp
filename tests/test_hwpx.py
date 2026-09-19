@@ -49,11 +49,7 @@ _NS = (
 
 
 def test_table_caption_is_read(tmp_path):
-    """OWPML hangs the caption off the table, outside its rows.
-
-    Measured on a 7.4 MB public report: eleven table titles — the lines a search
-    is most likely to match — were the only text the reader missed.
-    """
+    """OWPML hangs the caption off the table, outside its rows."""
     section = (
         f"<hs:sec {_NS}><hp:p><hp:run><hp:tbl>"
         "<hp:caption><hp:subList><hp:p><hp:run>"

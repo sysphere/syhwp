@@ -58,11 +58,8 @@ def _direct(el, name: str) -> List:
 def _caption_text(tbl) -> str:
     """A table's caption — ``hp:caption`` holds it, outside the rows.
 
-    OWPML attaches the caption to the table element itself, so a reader that
-    collects only ``tr``/``tc`` returns the grid without its title. Measured on
-    a 7.4 MB public report: eleven table titles such as
-    ``【최근 10년간 기상특보 발표 현황】`` were the only text the reader missed,
-    and a table title is the line a search is most likely to match.
+    OWPML attaches the caption to the table element, so collecting only
+    ``tr``/``tc`` returns the grid without its title.
     """
     for node in tbl:
         if _local(node.tag) != "caption":

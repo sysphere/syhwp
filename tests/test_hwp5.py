@@ -74,12 +74,7 @@ def _emit(records):
 
 
 def test_text_box_text_is_emitted():
-    """A drawing object holds its text in a list under SHAPE_COMPONENT.
-
-    Measured on a real 2.2 MB annual report: every one of its 3,326 characters
-    sat under ``gso`` controls, so a reader that walks only the top level
-    returned an empty document.
-    """
+    """A drawing object holds its text in a list under SHAPE_COMPONENT."""
     blocks = _emit([
         (HWPTAG_PARA_HEADER, 0, b""),
         (HWPTAG_CTRL_HEADER, 1, _ctrl("gso ")),
@@ -94,8 +89,7 @@ def test_text_box_text_is_emitted():
 
 
 def test_a_drawing_without_text_is_still_an_image():
-    """The other half of the rule — "a document of nothing but pictures" has to
-    stay recognisable, which is what the caller's empty-document check reads."""
+    """The other half of the rule: a picture-only document stays recognisable."""
     blocks = _emit([
         (HWPTAG_PARA_HEADER, 0, b""),
         (HWPTAG_CTRL_HEADER, 1, _ctrl("gso ")),
@@ -106,12 +100,7 @@ def test_a_drawing_without_text_is_still_an_image():
 
 
 def test_table_caption_is_emitted_and_is_not_a_cell():
-    """The caption list precedes the TABLE record; the cell lists follow it.
-
-    Reading cells from the first list made the caption a cell with a wild
-    address — measured ``addr=(1, 2, 0, 8504, 0)`` on a 1x1 table — which then
-    fell outside the grid and vanished at render time.
-    """
+    """The caption list precedes the TABLE record; the cell lists follow it."""
     blocks = _emit([
         (HWPTAG_PARA_HEADER, 0, b""),
         (HWPTAG_CTRL_HEADER, 1, _ctrl("tbl ")),
@@ -147,8 +136,7 @@ def test_a_footnote_is_emitted_where_it_is_anchored():
 
 
 def test_a_table_inside_a_text_box_stays_a_table():
-    """The walk hands controls to their own emitter, so nesting does not flatten
-    a table into loose paragraphs — nor emit its cells twice."""
+    """Nesting neither flattens a table nor emits its cells twice."""
     blocks = _emit([
         (HWPTAG_PARA_HEADER, 0, b""),
         (HWPTAG_CTRL_HEADER, 1, _ctrl("gso ")),

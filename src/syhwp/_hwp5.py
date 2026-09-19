@@ -242,11 +242,9 @@ def _build_table(ctrl: _Node) -> Optional[Table]:
     if n_rows <= 0 or n_cols <= 0:
         return None
 
-    # Cell lists follow the TABLE record; anything before it belongs to the
-    # control's common properties (the caption list). Reading from index 0 made
-    # the caption's LIST_HEADER look like a cell with a wild address — measured
-    # on a caption sample: addr=(1, 2, 0, 8504, 0) on a 1x1 table, so the cell
-    # fell outside the grid and its text was dropped at render time.
+    # Cell lists follow the TABLE record; what precedes it is the caption list,
+    # whose header is cell-shaped and used to be read as a cell with an address
+    # outside the grid.
     cells: List[Cell] = []
     children = ctrl.children
     start = next((n for n, c in enumerate(children) if c.tag == HWPTAG_TABLE), -1)
@@ -288,22 +286,18 @@ def _equation_script(ctrl: _Node) -> str:
     return eq.payload[6:6 + n * 2].decode("utf-16-le", "replace").strip()
 
 
-#: How deep the emitter follows nested lists. Real documents nest a few levels
-#: (a text box inside a cell inside a table); a malformed file must not be able
-#: to drive the walk into recursion failure.
+# How deep the emitter follows nested lists; a malformed level chain must not be
+# able to drive the walk into recursion failure.
 _MAX_EMIT_DEPTH = 32
 
 
 def _caption_paragraphs(ctrl: _Node) -> List[_Node]:
     """A control's caption paragraphs — the list that precedes its own record.
 
-    Every control carries the common object properties first, and the caption
-    list is part of them; the object's own record (``TABLE`` for a table,
-    ``SHAPE_COMPONENT`` for a drawing, ``EQEDIT`` for an equation) comes after. So the paragraphs before
-    that record are the caption, which is why they are not cells.
-
-    Measured on caption samples: the caption list header is a direct child with
-    a cell-shaped payload, which is how it used to be mistaken for a cell.
+    The common object properties come first, the caption list among them, and
+    the control's own record (``TABLE`` / ``SHAPE_COMPONENT`` / ``EQEDIT``)
+    follows. The caption's list header is cell-shaped, so it has to be told
+    apart by position rather than by payload.
     """
     out: List[_Node] = []
     for child in ctrl.children:
@@ -335,17 +329,10 @@ def _emit_paragraph(para: _Node, blocks: List, depth: int = 0) -> None:
 def _emit_control(ctrl: _Node, blocks: List, depth: int = 0) -> None:
     """Append what a control holds — a table, an equation, or nested text.
 
-    🔑 **Text lives under many controls, not only under top-level paragraphs.**
-    A text box, a footnote, an endnote, a header, a footer and a caption all
-    store their paragraphs in a nested list under their control, and a reader
-    that walks only the top level returns nothing for a document written that
-    way. Measured on a real 2.2 MB annual report: all 3,326 characters sat under
-    ``gso`` controls at record levels 4 and 7, so the document extracted as
-    empty.
-
-    A drawing that yields no text at all still reports itself as an
-    :class:`Image`, which is what keeps "a document of nothing but pictures"
-    recognisable to callers.
+    Text boxes, footnotes, endnotes, headers, footers and captions keep their
+    paragraphs in a nested list under the control, not at the top level. A
+    drawing with no text at all still reports itself as an :class:`Image`, which
+    is what keeps a picture-only document recognisable. See DESIGN.md.
     """
     if len(ctrl.payload) < 4 or depth >= _MAX_EMIT_DEPTH:
         return
@@ -371,9 +358,8 @@ def _emit_control(ctrl: _Node, blocks: List, depth: int = 0) -> None:
 def _emit_subtree(node: _Node, blocks: List, depth: int = 0) -> None:
     """Walk a control's subtree in document order, emitting what it holds.
 
-    Paragraphs and controls are handed to their own emitters — which is what
-    keeps a table nested inside a text box a table, and keeps a table's cells
-    from being emitted twice.
+    Paragraphs and controls go to their own emitters, so a table nested in a
+    text box stays a table and its cells are not emitted twice.
     """
     if depth >= _MAX_EMIT_DEPTH:
         return
