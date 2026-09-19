@@ -29,6 +29,7 @@ HWPTAG_PARA_HEADER = _HWPTAG_BEGIN + 50   # 66
 HWPTAG_PARA_TEXT = _HWPTAG_BEGIN + 51     # 67
 HWPTAG_CTRL_HEADER = _HWPTAG_BEGIN + 55   # 71
 HWPTAG_LIST_HEADER = _HWPTAG_BEGIN + 56   # 72
+HWPTAG_SHAPE_COMPONENT = _HWPTAG_BEGIN + 60  # 76
 HWPTAG_TABLE = _HWPTAG_BEGIN + 61         # 77
 HWPTAG_EQEDIT = _HWPTAG_BEGIN + 72        # 88
 
@@ -241,9 +242,15 @@ def _build_table(ctrl: _Node) -> Optional[Table]:
     if n_rows <= 0 or n_cols <= 0:
         return None
 
+    # Cell lists follow the TABLE record; anything before it belongs to the
+    # control's common properties (the caption list). Reading from index 0 made
+    # the caption's LIST_HEADER look like a cell with a wild address — measured
+    # on a caption sample: addr=(1, 2, 0, 8504, 0) on a 1x1 table, so the cell
+    # fell outside the grid and its text was dropped at render time.
     cells: List[Cell] = []
     children = ctrl.children
-    i = 0
+    start = next((n for n, c in enumerate(children) if c.tag == HWPTAG_TABLE), -1)
+    i = start + 1
     while i < len(children):
         node = children[i]
         if node.tag == HWPTAG_LIST_HEADER and len(node.payload) >= 16:
@@ -281,9 +288,34 @@ def _equation_script(ctrl: _Node) -> str:
     return eq.payload[6:6 + n * 2].decode("utf-16-le", "replace").strip()
 
 
-def _emit_paragraph(para: _Node, blocks: List) -> None:
-    """Append a top-level paragraph's text, then any objects anchored in it
-    (tables, equations, images) in child order."""
+#: How deep the emitter follows nested lists. Real documents nest a few levels
+#: (a text box inside a cell inside a table); a malformed file must not be able
+#: to drive the walk into recursion failure.
+_MAX_EMIT_DEPTH = 32
+
+
+def _caption_paragraphs(ctrl: _Node) -> List[_Node]:
+    """A control's caption paragraphs — the list that precedes its own record.
+
+    Every control carries the common object properties first, and the caption
+    list is part of them; the object's own record (``TABLE`` for a table,
+    ``SHAPE_COMPONENT`` for a drawing, ``EQEDIT`` for an equation) comes after. So the paragraphs before
+    that record are the caption, which is why they are not cells.
+
+    Measured on caption samples: the caption list header is a direct child with
+    a cell-shaped payload, which is how it used to be mistaken for a cell.
+    """
+    out: List[_Node] = []
+    for child in ctrl.children:
+        if child.tag in (HWPTAG_TABLE, HWPTAG_SHAPE_COMPONENT, HWPTAG_EQEDIT):
+            break
+        if child.tag == HWPTAG_PARA_HEADER:
+            out.append(child)
+    return out
+
+
+def _emit_paragraph(para: _Node, blocks: List, depth: int = 0) -> None:
+    """Append a paragraph's own text, then the objects anchored in it."""
     text = normalize(
         " ".join(
             decode_para_text(c.payload)
@@ -293,18 +325,65 @@ def _emit_paragraph(para: _Node, blocks: List) -> None:
     )
     if text:
         blocks.append(Paragraph(text))
+    if depth >= _MAX_EMIT_DEPTH:
+        return
     for c in para.children:
-        if c.tag != HWPTAG_CTRL_HEADER or len(c.payload) < 4:
-            continue
-        ctrl_id = c.payload[:4]
-        if ctrl_id == _CTRL_ID_TABLE:
-            table = _build_table(c)
-            if table is not None:
-                blocks.append(table)
-        elif ctrl_id == _CTRL_ID_EQUATION:
-            blocks.append(Equation(_equation_script(c)))
-        elif ctrl_id == _CTRL_ID_GSO:
-            blocks.append(Image())
+        if c.tag == HWPTAG_CTRL_HEADER:
+            _emit_control(c, blocks, depth + 1)
+
+
+def _emit_control(ctrl: _Node, blocks: List, depth: int = 0) -> None:
+    """Append what a control holds — a table, an equation, or nested text.
+
+    🔑 **Text lives under many controls, not only under top-level paragraphs.**
+    A text box, a footnote, an endnote, a header, a footer and a caption all
+    store their paragraphs in a nested list under their control, and a reader
+    that walks only the top level returns nothing for a document written that
+    way. Measured on a real 2.2 MB annual report: all 3,326 characters sat under
+    ``gso`` controls at record levels 4 and 7, so the document extracted as
+    empty.
+
+    A drawing that yields no text at all still reports itself as an
+    :class:`Image`, which is what keeps "a document of nothing but pictures"
+    recognisable to callers.
+    """
+    if len(ctrl.payload) < 4 or depth >= _MAX_EMIT_DEPTH:
+        return
+    ctrl_id = ctrl.payload[:4]
+    if ctrl_id == _CTRL_ID_TABLE:
+        for para in _caption_paragraphs(ctrl):
+            _emit_paragraph(para, blocks, depth + 1)
+        table = _build_table(ctrl)
+        if table is not None:
+            blocks.append(table)
+        return
+    if ctrl_id == _CTRL_ID_EQUATION:
+        for para in _caption_paragraphs(ctrl):
+            _emit_paragraph(para, blocks, depth + 1)
+        blocks.append(Equation(_equation_script(ctrl)))
+        return
+    before = len(blocks)
+    _emit_subtree(ctrl, blocks, depth + 1)
+    if ctrl_id == _CTRL_ID_GSO and len(blocks) == before:
+        blocks.append(Image())
+
+
+def _emit_subtree(node: _Node, blocks: List, depth: int = 0) -> None:
+    """Walk a control's subtree in document order, emitting what it holds.
+
+    Paragraphs and controls are handed to their own emitters — which is what
+    keeps a table nested inside a text box a table, and keeps a table's cells
+    from being emitted twice.
+    """
+    if depth >= _MAX_EMIT_DEPTH:
+        return
+    for child in node.children:
+        if child.tag == HWPTAG_PARA_HEADER:
+            _emit_paragraph(child, blocks, depth + 1)
+        elif child.tag == HWPTAG_CTRL_HEADER:
+            _emit_control(child, blocks, depth + 1)
+        else:
+            _emit_subtree(child, blocks, depth + 1)
 
 
 def read_document_hwp5(path) -> Document:

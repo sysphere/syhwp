@@ -5,6 +5,26 @@ All notable changes to syhwp are documented here. This project adheres to
 
 ## [Unreleased]
 
+Text that lives outside top-level paragraphs.
+
+- **Text boxes, footnotes, endnotes, headers and footers are read.** The HWP 5.x
+  emitter now walks a control's whole subtree instead of only its top-level
+  paragraphs. Measured on a 2.2 MB annual report: all 3,326 of its characters sat
+  under `gso` controls, so the document used to extract as empty.
+- **Table captions are read**, in both formats — the caption is emitted as a
+  paragraph ahead of its table. In HWP 5.x it was also being mistaken for a cell,
+  which put it outside the grid and dropped it; in HWPX it was never visited.
+  Equation and drawing captions come through the same way.
+- A drawing reports itself as an `Image` only when it holds no text, so a text
+  box no longer renders a `[그림]` placeholder in front of its own prose.
+
+Measured over 85 public documents (60 government forms from the National Law
+Information Center, 25 feature fixtures): before, 8 files extracted nothing and 7
+more lost text; after, the only files that extract nothing are the two that hold
+nothing but pictures and the three that are password- or distribution-locked, and
+no file loses a run. Government forms — 182 tables, 6,862 cells — were unaffected,
+which is the regression this set exists to catch.
+
 ## [0.0.7] — 2026-07-14
 
 Discoverability and documentation.

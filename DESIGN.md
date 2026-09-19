@@ -71,21 +71,46 @@ little-endian control id `"tbl "`. Its children are:
 
 Cells are placed into an `n_rows × n_cols` grid. Nested tables linearize into the
 containing cell's text. Equations (`eqed` control → `EQEDIT` record, tag 88) are
-surfaced as their script; images (`gso` control) as a placeholder. All record
-offsets were derived empirically from the public format.
+surfaced as their script. All record offsets were derived empirically from the
+public format.
+
+**Nested lists.** Text does not live only under top-level paragraphs. A control
+carries the *common object properties* first — the caption list among them — and
+then its own record (`TABLE`, `SHAPE_COMPONENT` tag 76, or `EQEDIT`); anything a
+text box, footnote, endnote, header or footer holds is a `LIST_HEADER` +
+`PARA_HEADER` subtree below that. So the emitter walks a control's whole subtree
+and hands each paragraph and each nested control to its own emitter, which is
+what keeps a table inside a text box a table and a cell's text from appearing
+twice. The walk is depth-capped so a malformed level chain cannot drive it into
+recursion failure.
+
+Two consequences worth stating, because both were measured as defects:
+
+- **The caption list is not a cell list.** It precedes the `TABLE` record, and
+  reading cells from the first `LIST_HEADER` made the caption a cell with a wild
+  address (`(1, 2, 0, 8504, 0)` on a 1×1 table) whose text then fell outside the
+  grid and vanished. Cells are read from after the `TABLE` record; the caption is
+  emitted as a paragraph ahead of the table, where a reader looking for the
+  table's title will find it. Captions attached below a table in the layout still
+  come out ahead of it — the record order is what the reader has.
+- **A drawing reports itself as an `Image` only when it holds no text.** A text
+  box is a `gso` control too, so emitting a placeholder unconditionally would put
+  `[그림]` in front of prose; emitting nothing would lose "this document is
+  nothing but pictures", which callers check to tell a scan apart from a document
+  they failed to read.
 
 ## HWPX format (`_hwpx.py`)
 
 ZIP package (magic `PK\x03\x04`, mimetype `application/hwp+zip`). Content lives in
 `Contents/section{N}.xml` as OWPML, parsed with the standard library (`zipfile` +
 `xml.etree.ElementTree`) by matching elements on local name (namespace-agnostic):
-`p` (paragraph), `t` (text run), `tbl`/`tr`/`tc` (table/row/cell), `equation`
-(with `script`), `pic` (image). The document version comes from `version.xml`
+`p` (paragraph), `t` (text run), `tbl`/`tr`/`tc` (table/row/cell), `caption`
+(a table's title, hanging off `tbl` outside its rows and emitted as a paragraph
+ahead of the table), `equation` (with `script`), `pic` (image). The document version comes from `version.xml`
 (major.minor.micro.buildNumber).
 
 ## Roadmap
 
-- Footnotes / endnotes and captions.
 - Character-shape aware output (bold / italic from `DocInfo`).
 - Distribution (copy-protected) document decoding — requires the HANCOM
   distribution-doc spec (seed → de-obfuscation → AES) implemented clean-room; the
