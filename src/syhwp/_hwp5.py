@@ -13,6 +13,7 @@ from typing import List, Optional, Tuple
 
 import olefile
 
+from ._crypt import decrypt_section, section_key
 from ._markdown import normalize
 from ._records import iter_records
 from .exceptions import EncryptedDocumentError, InvalidHwpError
@@ -25,6 +26,7 @@ _MAX_SECTION_BYTES = 256 * 1024 * 1024
 
 # Record tags (HWPTAG_BEGIN = 0x10).
 _HWPTAG_BEGIN = 0x10
+HWPTAG_DISTRIBUTE_DOC_DATA = _HWPTAG_BEGIN + 12  # 28
 HWPTAG_PARA_HEADER = _HWPTAG_BEGIN + 50   # 66
 HWPTAG_PARA_TEXT = _HWPTAG_BEGIN + 51     # 67
 HWPTAG_CTRL_HEADER = _HWPTAG_BEGIN + 55   # 71
@@ -105,6 +107,25 @@ def is_table_control(payload: bytes) -> bool:
 # Section access
 # --------------------------------------------------------------------------- #
 
+def _open_distributed(raw: bytes) -> bytes:
+    """Strip and apply a ViewText section's distribution header.
+
+    The section opens with a 256-byte ``HWPTAG_DISTRIBUTE_DOC_DATA`` record that
+    carries the key; the rest is AES-128-ECB under it.
+    """
+    if len(raw) < 4 + 256:
+        raise InvalidHwpError("Distribution section is too short to hold its header")
+    (header,) = struct.unpack_from("<I", raw, 0)
+    tag, size = header & 0x3FF, (header >> 20) & 0xFFF
+    if tag != HWPTAG_DISTRIBUTE_DOC_DATA or size != 256:
+        raise InvalidHwpError("Distribution section does not open with its data record")
+    try:
+        key = section_key(raw[4:260])
+    except ValueError as e:
+        raise InvalidHwpError(str(e)) from e
+    return decrypt_section(raw[260:], key)
+
+
 def _section_no(name: str) -> int:
     digits = "".join(ch for ch in name if ch.isdigit())
     return int(digits) if digits else 0
@@ -136,8 +157,9 @@ def _version_str(fh: bytes) -> str:
 def _read_hwp5(path) -> Tuple[str, List[List[Tuple[int, int, bytes]]]]:
     """Return ``(version, [section_records, ...])`` for an HWP 5.x file.
 
-    Raises :class:`EncryptedDocumentError` for password/distribution documents
-    and :class:`InvalidHwpError` for non-HWP or structurally broken files.
+    Raises :class:`EncryptedDocumentError` for password-protected documents and
+    :class:`InvalidHwpError` for non-HWP or structurally broken files.
+    Distribution (copy-protected) documents are read: their key is in the file.
     """
     if not olefile.isOleFile(path):
         raise InvalidHwpError("Not an OLE compound file (HWP 5.x)")
@@ -156,15 +178,17 @@ def _read_hwp5(path) -> Tuple[str, List[List[Tuple[int, int, bytes]]]]:
         compressed = bool(flags & _FLAG_COMPRESSED)
         if flags & _FLAG_PASSWORD:
             raise EncryptedDocumentError("Password-protected HWP document")
-        if flags & _FLAG_DISTRIBUTION:
-            raise EncryptedDocumentError("Distribution (copy-protected) HWP document")
+        distributed = bool(flags & _FLAG_DISTRIBUTION)
 
+        # A distribution document holds its body in ViewText, not BodyText — the
+        # BodyText streams are left as stubs.
+        folder = "ViewText" if distributed else "BodyText"
         entries = sorted(
             (
                 entry
                 for entry in ole.listdir()
                 if len(entry) == 2
-                and entry[0] == "BodyText"
+                and entry[0] == folder
                 and entry[1].lower().startswith("section")
             ),
             key=lambda entry: _section_no(entry[1]),
@@ -172,6 +196,8 @@ def _read_hwp5(path) -> Tuple[str, List[List[Tuple[int, int, bytes]]]]:
         sections = []
         for entry in entries:
             raw = ole.openstream(entry).read()
+            if distributed:
+                raw = _open_distributed(raw)
             data = _inflate(raw) if compressed else raw
             sections.append(list(iter_records(data)))
         return version, sections

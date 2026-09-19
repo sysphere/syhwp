@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "syhwp"
-version = "0.0.7"
+version = "0.0.8"
 description = "Read Korean HWP and HWPX (Hancom Office / 한글) documents in pure Python — text, tables, Markdown, HTML."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -50,7 +50,10 @@ classifiers = [
 dependencies = ["olefile>=0.46"]
 
 [project.optional-dependencies]
-test = ["pytest>=7"]
+# Distribution (copy-protected) documents decrypt ~90x faster with a native AES;
+# without it the bundled pure-Python one is used, so this stays optional.
+fast = ["cryptography>=42"]
+test = ["pytest>=7", "cryptography>=42"]
 
 [project.scripts]
 syhwp = "syhwp.__main__:main"

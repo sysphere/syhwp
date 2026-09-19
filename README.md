@@ -112,8 +112,11 @@ for eq in doc.equations:              # Equation(script)
 
 ## Limitations
 
-- Password-protected and *distribution* (copy-protected, 배포용) documents cannot
-  be read — their body is encrypted; these raise `EncryptedDocumentError`.
+- Password-protected documents cannot be read — they raise
+  `EncryptedDocumentError`. *Distribution* (copy-protected, 배포용) documents are
+  read: their key travels with the file, so the flag asks editors not to edit
+  rather than keeping a secret. Install `syhwp[fast]` (or have `cryptography`
+  present) to decrypt them ~90× faster than the bundled pure-Python AES.
 - Merged table cells are captured in the model (`row_span` / `col_span`), but
   Markdown output leaves the covered cells blank (Markdown cannot merge cells).
 - HWP 3.x and earlier (a different, pre-5.0 format) are not supported.

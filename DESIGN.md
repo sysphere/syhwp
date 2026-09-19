@@ -44,10 +44,13 @@ OLE compound file (magic `D0CF11E0…`). Relevant streams:
 
 - **`FileHeader`** — 32-byte signature `"HWP Document File"`, then a version
   uint32 and a properties uint32. Property bit 0 = compressed, bit 1 = password,
-  bit 2 = distribution (copy-protected). Bits 1/2 mean the body is encrypted, so
-  the reader raises `EncryptedDocumentError`.
+  bit 2 = distribution (copy-protected). Bit 1 means the body is encrypted under
+  a password the file does not carry, so the reader raises
+  `EncryptedDocumentError`; bit 2 is read (see below).
 - **`BodyText/Section{N}`** — the content. When compressed, it is raw DEFLATE
   (`zlib.decompress(data, -15)`).
+- **`ViewText/Section{N}`** — where a distribution document keeps its content
+  instead; the `BodyText` streams are then stubs.
 - **`DocInfo`** — fonts / styles / bindata map. Not needed for text or table
   extraction, so it is not parsed.
 
@@ -99,6 +102,23 @@ Two consequences worth stating, because both were measured as defects:
   nothing but pictures", which callers check to tell a scan apart from a document
   they failed to read.
 
+**Distribution documents** (`_crypt.py`) keep their sections in `ViewText`, each
+opening with a 256-byte `HWPTAG_DISTRIBUTE_DOC_DATA` record (tag 28). Its first
+four bytes are a seed; the rest of the record is masked with a byte stream from a
+linear congruential generator (`n = 214013·n + 2531011`) that draws twice per run
+— the first draw's `(n >> 16) & 0xFF` is the byte, the second's `((n >> 16) & 0x0F) + 1`
+how far it reaches. Unmasked, the record holds UTF-16LE hex characters, and the
+16 bytes at `4 + (seed & 0x0F)` are the AES-128 key the rest of the section is
+encrypted with (ECB), after which the usual DEFLATE applies. The generator was
+fitted to the stream one sample implies and then confirmed by a second with a
+different seed; both decrypt into records that parse.
+
+The key is *in the file*, so this flag asks editors not to edit rather than
+keeping a secret — which is why reading it needs no password and is not
+decryption in the password sense. AES comes from `cryptography` when present
+(~90× faster, `syhwp[fast]`) and from a small bundled implementation otherwise,
+checked against the FIPS 197 vector.
+
 ## HWPX format (`_hwpx.py`)
 
 ZIP package (magic `PK\x03\x04`, mimetype `application/hwp+zip`). Content lives in
@@ -112,14 +132,11 @@ ahead of the table), `equation` (with `script`), `pic` (image). The document ver
 ## Roadmap
 
 - Character-shape aware output (bold / italic from `DocInfo`).
-- Distribution (copy-protected) document decoding — requires the HANCOM
-  distribution-doc spec (seed → de-obfuscation → AES) implemented clean-room; the
-  AES backend would be an optional extra to keep the core dependency-free.
 - Hyperlinks as markdown links; richer HWPX object support.
 
 ## Non-goals
 
 - Writing or editing HWP files (read-only).
 - Pixel-perfect layout fidelity — this is content extraction.
-- Decrypting password / distribution-protected documents.
+- Decrypting password-protected documents (the password is not in the file).
 - HWP 3.x and earlier (a different, pre-5.0 format).

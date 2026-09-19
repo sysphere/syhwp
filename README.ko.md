@@ -109,8 +109,10 @@ for eq in doc.equations:               # Equation(script)
 
 ## 한계
 
-- 암호 문서와 **배포용(복사방지)** 문서는 본문이 암호화돼 있어 읽을 수 없습니다 →
-  `EncryptedDocumentError`.
+- 암호 문서는 읽을 수 없습니다 → `EncryptedDocumentError`. **배포용(복사방지)**
+  문서는 읽습니다 — 열쇠가 파일 안에 함께 들어 있어서, 그 표시는 비밀을 지키는 것이
+  아니라 편집하지 말라는 뜻입니다. `syhwp[fast]` (또는 `cryptography` 설치)이면
+  내장 순수 파이썬 AES 보다 약 90배 빠르게 풉니다.
 - 병합 셀은 모델(`row_span`/`col_span`)에 담기지만, 마크다운은 셀 병합을 못 하므로
   가려진 셀은 빈칸으로 둡니다.
 - HWP 3.x 이하(5.0 이전의 다른 포맷)는 지원하지 않습니다.

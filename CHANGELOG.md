@@ -5,7 +5,16 @@ All notable changes to syhwp are documented here. This project adheres to
 
 ## [Unreleased]
 
-Text that lives outside top-level paragraphs.
+## [0.0.8] — 2026-09-19
+
+Text that lives outside top-level paragraphs, and distribution documents.
+
+- **Distribution (copy-protected, 배포용) documents are read.** Their content
+  sits in `ViewText` under AES-128 whose key the file carries in a masked header,
+  so the flag asks editors not to edit rather than keeping a secret. HANCOM's own
+  published HWP 5.0 specification is such a document: it now extracts 55,931
+  characters and 166 tables. `syhwp[fast]` (or any `cryptography` install)
+  decrypts ~90× faster than the bundled pure-Python AES; neither is required.
 
 - **Text boxes, footnotes, endnotes, headers and footers are read.** The HWP 5.x
   emitter now walks a control's whole subtree instead of only its top-level
@@ -17,6 +26,7 @@ Text that lives outside top-level paragraphs.
   Equation and drawing captions come through the same way.
 - A drawing reports itself as an `Image` only when it holds no text, so a text
   box no longer renders a `[그림]` placeholder in front of its own prose.
+- `EncryptedDocumentError` now means "password-protected" only.
 
 Measured over 85 public documents (60 government forms from the National Law
 Information Center, 25 feature fixtures): before, 8 files extracted nothing and 7

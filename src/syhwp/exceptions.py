@@ -14,8 +14,8 @@ class InvalidHwpError(SyhwpError):
 
 
 class EncryptedDocumentError(SyhwpError):
-    """The document is password-protected or distribution (copy-protected).
+    """The document is password-protected, so its body cannot be read.
 
-    Such documents have encrypted body streams and cannot be read without the
-    key, which is out of scope for syhwp.
+    Distribution (copy-protected) documents do not raise this: their key is in
+    the file.
     """
